@@ -99,7 +99,8 @@ class TaskOrchestrator:
             point for manual intervention.
         """
         # Extract last action from thought trace for context
-        last_action: str = "Unknown Action"
+        # Sentinel Check: Prevent IndexError if trace is empty
+        last_action: str = "Initial Assignment"
         if task.thought_trace:
             last_action = str(task.thought_trace[-1].get("action", "Unknown Action"))
 
