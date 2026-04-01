@@ -8,6 +8,7 @@ dependencies = [
     "mypy>=1.20.0",
     "pydantic>=2.12.5",
     "pytest>=9.0.2",
+    "pytest-asyncio>=0.25.3",
     "pytest-cov>=7.1.0",
     "ruff>=0.15.8",
     "sqlalchemy[mypy]>=2.0.38",
