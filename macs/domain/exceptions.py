@@ -10,7 +10,13 @@ class MACSDomainException(Exception):
 class MaxStrikesExceededError(MACSDomainException):
     """Raised when a task hits the 5th strike and requires human intervention."""
 
-    pass
+    def __init__(self, message: str) -> None:
+        """Initializes the exception with a descriptive message.
+
+        Args:
+            message: The rationale for the halt.
+        """
+        super().__init__(message)
 
 
 class ConsensusNotReachedError(MACSDomainException):
