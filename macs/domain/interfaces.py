@@ -1,7 +1,8 @@
 """Abstract Base Classes for the MACS Domain Layer."""
 
 from abc import ABC, abstractmethod
-from collections.abc import Generator
+from collections.abc import AsyncGenerator
+from typing import Self
 from uuid import UUID
 
 from .entities import Agent, ConsensusVote, Task
@@ -11,36 +12,37 @@ class IStateRepository(ABC):
     """Interface for persistent storage of the system state.
 
     Follows Dependency Inversion: Domain does not know about storage tech.
+    Methods are asynchronous to support non-blocking orchestration logic.
     """
 
     @abstractmethod
-    def get_task(self, task_id: UUID) -> Task | None:
+    async def get_task(self, task_id: UUID) -> Task | None:
         """Retrieves a task by its unique identifier."""
         pass
 
     @abstractmethod
-    def update_task(self, task: Task) -> None:
+    async def update_task(self, task: Task) -> None:
         """Persists the updated state of an existing task."""
         pass
 
     @abstractmethod
-    def save_agent(self, agent: Agent) -> None:
+    async def save_agent(self, agent: Agent) -> None:
         """Registers or updates an agent in the system state."""
         pass
 
     @abstractmethod
-    def add_vote(self, task_id: UUID, vote: ConsensusVote) -> None:
+    async def add_vote(self, task_id: UUID, vote: ConsensusVote) -> None:
         """Appends a Team Lead vote to a task's consensus record."""
         pass
 
     @abstractmethod
-    def stream_active_tasks(self) -> Generator[Task, None, None]:
-        """Yields tasks currently in progress to maintain low memory overhead.
+    async def stream_active_tasks(self) -> AsyncGenerator[Task, None]:
+        """Yields tasks in progress via an async generator for memory efficiency.
 
         Yields:
             Task: The next active task in the sequence.
         """
-        pass
+        yield  # type: ignore
 
 
 class IQueueProvider(ABC):
@@ -59,4 +61,35 @@ class IQueueProvider(ABC):
     @abstractmethod
     def get_queue_length(self) -> int:
         """Returns the number of pending tasks in the queue."""
+        pass
+
+
+class IUnitOfWork(ABC):
+    """Interface for managing atomic database transactions.
+
+    Encapsulates multiple repository actions into a single commit/rollback cycle.
+    """
+
+    tasks: IStateRepository
+
+    @abstractmethod
+    async def __aenter__(self) -> Self:
+        """Starts the atomic transaction context."""
+        pass
+
+    @abstractmethod
+    async def __aexit__(
+        self, exc_type: object, exc_val: object, exc_tb: object
+    ) -> None:
+        """Ends the context, ensuring rollback on failure."""
+        pass
+
+    @abstractmethod
+    async def commit(self) -> None:
+        """Commits all changes within the current transaction."""
+        pass
+
+    @abstractmethod
+    async def rollback(self) -> None:
+        """Aborts all changes within the current transaction."""
         pass
