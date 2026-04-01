@@ -42,6 +42,10 @@ class PostgresStateRepository(IStateRepository):
 
         Args:
             task: The Domain Task entity to persist.
+
+        Reasoning:
+            Does not call .commit(). Transaction management is handled
+            at the Application/Use-Case layer.
         """
         table_data = DomainMapper.to_table_task(task)
         db_task = self._session.get(TaskTable, task.id)
@@ -52,8 +56,6 @@ class PostgresStateRepository(IStateRepository):
         else:
             new_task = TaskTable(**table_data)
             self._session.add(new_task)
-
-        self._session.commit()
 
     def save_agent(self, agent: Agent) -> None:
         """Saves agent status (Implementation pending Infrastructure Role)."""
@@ -74,7 +76,6 @@ class PostgresStateRepository(IStateRepository):
             timestamp=vote.timestamp,
         )
         self._session.add(db_vote)
-        self._session.commit()
 
     def stream_active_tasks(self) -> Generator[Task, None, None]:
         """Streams tasks not in terminal states using a generator.
