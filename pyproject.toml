@@ -10,6 +10,8 @@ dependencies = [
     "pytest>=9.0.2",
     "pytest-cov>=7.1.0",
     "ruff>=0.15.8",
+    "sqlalchemy[mypy]>=2.0.38",
+    "psycopg2-binary>=2.9.10",
 ]
 
 [dependency-groups]
@@ -53,7 +55,7 @@ warn_unused_configs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 show_error_codes = true
-plugins = ["pydantic.mypy"]
+plugins = ["pydantic.mypy", "sqlalchemy.ext.mypy.plugin"]
 
 [tool.pydantic-mypy]
 init_forbid_extra = true
