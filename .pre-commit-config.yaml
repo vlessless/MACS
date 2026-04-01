@@ -18,6 +18,9 @@ repos:
     rev: v1.8.0
     hooks:
       - id: mypy
-        # Added pytest to allow MyPy to see types for test decorators
-        additional_dependencies: [pydantic>=2.0.0, pytest>=8.0.0]
+        # Block style list with quotes to prevent YAML parsing errors with [brackets]
+        additional_dependencies:
+          - "pydantic>=2.12.5"
+          - "pytest>=9.0.2"
+          - "sqlalchemy[mypy]>=2.0.38"
         args: [--strict]
