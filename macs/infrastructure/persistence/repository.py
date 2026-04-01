@@ -1,10 +1,10 @@
 """Postgres implementation of the IStateRepository."""
 
-from collections.abc import Generator
+from collections.abc import AsyncGenerator
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from macs.domain.entities import Agent, ConsensusVote, Task
 from macs.domain.enums import TaskStatus
@@ -14,17 +14,20 @@ from macs.infrastructure.persistence.models import ConsensusVoteTable, TaskTable
 
 
 class PostgresStateRepository(IStateRepository):
-    """SQLAlchemy-based implementation of system state persistence."""
+    """SQLAlchemy-based implementation of system state persistence.
 
-    def __init__(self, session: Session) -> None:
-        """Initializes the repository with a database session.
+    Uses AsyncSession for non-blocking database operations.
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        """Initializes the repository with an active async session.
 
         Args:
-            session: An active SQLAlchemy Session.
+            session: An active SQLAlchemy AsyncSession.
         """
         self._session = session
 
-    def get_task(self, task_id: UUID) -> Task | None:
+    async def get_task(self, task_id: UUID) -> Task | None:
         """Retrieves and maps a task from the database.
 
         Args:
@@ -34,21 +37,17 @@ class PostgresStateRepository(IStateRepository):
             Task | None: The domain entity or None if not found.
         """
         stmt = select(TaskTable).where(TaskTable.id == task_id)
-        result = self._session.execute(stmt).scalar_one_or_none()
+        result = (await self._session.execute(stmt)).scalar_one_or_none()
         return DomainMapper.to_domain_task(result) if result else None
 
-    def update_task(self, task: Task) -> None:
+    async def update_task(self, task: Task) -> None:
         """Updates or creates a task in the database.
 
         Args:
             task: The Domain Task entity to persist.
-
-        Reasoning:
-            Does not call .commit(). Transaction management is handled
-            at the Application/Use-Case layer.
         """
         table_data = DomainMapper.to_table_task(task)
-        db_task = self._session.get(TaskTable, task.id)
+        db_task = await self._session.get(TaskTable, task.id)
 
         if db_task:
             for key, value in table_data.items():
@@ -57,11 +56,11 @@ class PostgresStateRepository(IStateRepository):
             new_task = TaskTable(**table_data)
             self._session.add(new_task)
 
-    def save_agent(self, agent: Agent) -> None:
+    async def save_agent(self, agent: Agent) -> None:
         """Saves agent status (Implementation pending Infrastructure Role)."""
         pass
 
-    def add_vote(self, task_id: UUID, vote: ConsensusVote) -> None:
+    async def add_vote(self, task_id: UUID, vote: ConsensusVote) -> None:
         """Persists a TL vote to the database.
 
         Args:
@@ -77,18 +76,15 @@ class PostgresStateRepository(IStateRepository):
         )
         self._session.add(db_vote)
 
-    def stream_active_tasks(self) -> Generator[Task, None, None]:
-        """Streams tasks not in terminal states using a generator.
+    async def stream_active_tasks(self) -> AsyncGenerator[Task, None]:
+        """Streams active tasks using an async generator for memory efficiency.
 
         Yields:
             Task: The next active domain task entity.
-
-        Reasoning:
-            Maintains low memory footprint by processing tasks one-by-one.
         """
         terminal_states = [TaskStatus.COMPLETED, TaskStatus.STALLED_FOR_HUMAN]
         stmt = select(TaskTable).where(TaskTable.status.notin_(terminal_states))
 
-        result = self._session.execute(stmt).scalars()
-        for task_row in result:
+        result = await self._session.stream_scalars(stmt)
+        async for task_row in result:
             yield DomainMapper.to_domain_task(task_row)

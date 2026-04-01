@@ -23,3 +23,9 @@ class ConsensusNotReachedError(MACSDomainException):
     """Raised when TL agents fail to reach a majority vote on a proposal."""
 
     pass
+
+
+class PersistenceError(MACSDomainException):
+    """Raised when a persistent operation (commit/rollback) fails."""
+
+    pass

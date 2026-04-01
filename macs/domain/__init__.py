@@ -6,8 +6,9 @@ from .exceptions import (
     ConsensusNotReachedError,
     MACSDomainException,
     MaxStrikesExceededError,
+    PersistenceError,
 )
-from .interfaces import IQueueProvider, IStateRepository
+from .interfaces import IQueueProvider, IStateRepository, IUnitOfWork
 
 __all__ = [
     "Agent",
@@ -20,6 +21,8 @@ __all__ = [
     "MACSDomainException",
     "MaxStrikesExceededError",
     "ConsensusNotReachedError",
+    "PersistenceError",
     "IStateRepository",
     "IQueueProvider",
+    "IUnitOfWork",
 ]
