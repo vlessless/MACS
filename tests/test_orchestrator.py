@@ -172,7 +172,7 @@ class TestTaskOrchestrator:
             description="...",
             status=TaskStatus.STALLED_FOR_HUMAN,
         )
-        mock_repo.get_task.get_task.return_value = task
+        mock_repo.get_task.return_value = task
 
         # Act
         await orchestrator.process_task(task_id)
