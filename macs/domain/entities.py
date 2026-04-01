@@ -7,6 +7,10 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
 from .enums import AgentRole, TaskStatus
+from .exceptions import MaxStrikesExceededError
+
+# MACS System Constants
+MAX_STRIKE_COUNT: int = 5
 
 
 class Agent(BaseModel):
@@ -51,8 +55,9 @@ class Task(BaseModel):
     """The central entity tracking the SDLC progress of a specific requirement.
 
     Attributes:
-        strike_count: Tracks consecutive pytest failures (5-Strike Rule).
+        strike_count: Tracks consecutive pytest failures (Max 5).
         thought_trace: A chronological log of agent reasoning and actions.
+        post_mortem_report: Detailed failure analysis for human intervention.
     """
 
     id: UUID = Field(default_factory=uuid4)
@@ -60,12 +65,35 @@ class Task(BaseModel):
     description: str
     status: TaskStatus = TaskStatus.PENDING
     assigned_agent_id: UUID | None = None
-    strike_count: int = Field(default=0, ge=0, le=5)
+    strike_count: int = Field(default=0, ge=0, le=MAX_STRIKE_COUNT)
     thought_trace: list[dict[str, Any]] = Field(default_factory=list)
+    post_mortem_report: PostMortemReport | None = Field(default=None)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     def increment_strike(self) -> None:
-        """Increments the strike count and updates the modified timestamp."""
+        """Increments the strike count and updates the modified timestamp.
+
+        Raises:
+            MaxStrikesExceededError: If the increment would exceed the limit.
+
+        Reasoning:
+            Enforces the 5-Strike Rule invariant at the domain level.
+        """
+        if self.strike_count >= MAX_STRIKE_COUNT:
+            raise MaxStrikesExceededError(
+                f"Task {self.id} has exceeded the maximum "
+                f"strike limit ({MAX_STRIKE_COUNT})."
+            )
+
         self.strike_count += 1
+        self.updated_at = datetime.now(UTC)
+
+    def attach_post_mortem(self, report: PostMortemReport) -> None:
+        """Links a post-mortem report to the task for human review.
+
+        Args:
+            report: The generated failure analysis report.
+        """
+        self.post_mortem_report = report
         self.updated_at = datetime.now(UTC)
