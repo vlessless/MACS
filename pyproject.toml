@@ -1,0 +1,56 @@
+[project]
+name = "multi-agent-autonomous-coding-system"
+version = "0.1.0"
+description = "Multi-Agent Autonomous Coding System (MACS) Core"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "mypy>=1.20.0",
+    "pydantic>=2.12.5",
+    "pytest>=9.0.2",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.15.8",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",    # Pycodestyle errors
+    "F",    # Pyflakes
+    "D",    # Pydocstyle (Docstrings)
+    "UP",   # Pyupgrade
+    "ANN",  # Flake8-annotations (Strict Typing)
+    "PL",   # Pylint logic checks
+    "B",    # Flake8-bugbear
+    "TID",  # Flake8-tidy-imports (Zero Leakage enforcement)
+]
+ignore = ["ANN101"] # Architect's Decision: Standardize self-annotation to be ignored to match modern PEP 484/673.
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-annotations]
+allow-star-arg-any = false
+ignore-fully-untyped = false
+
+[tool.ruff.lint.isort]
+known-first-party = ["macs"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+show_error_codes = true
+plugins = ["pydantic.mypy"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true

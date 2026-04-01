@@ -1,0 +1,9 @@
+{
+  "entity": "Task",
+  "design_reasoning": {
+    "strike_logic": "The strike_count is capped at 5 using Pydantic's 'le' constraint. This enforces the business rule at the data layer, preventing the orchestrator from exceeding the safety threshold without transitioning to STALLED_FOR_HUMAN.",
+    "temporal_integrity": "Field default_factory is used for created_at and updated_at to ensure that timestamps are generated at the moment of instantiation, preventing 'frozen' timestamps during system-level testing.",
+    "thought_trace_structure": "The thought_trace is a List of Dictionaries to allow the system to append heterogeneous log data (JSONB compatible) from multiple agent types while maintaining a strict chronological order of decision-making.",
+    "status_mapping": "TaskStatus includes discrete FAILED_STRIKE_N states. This supports the Application Layer's Dispatch Table, allowing for instant state-based logic branching without complex if/elif chains."
+  }
+}
