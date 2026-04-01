@@ -18,6 +18,6 @@ repos:
     rev: v1.8.0
     hooks:
       - id: mypy
-        # We only need pydantic. No 'types-all'.
-        additional_dependencies: [pydantic>=2.0.0]
+        # Added pytest to allow MyPy to see types for test decorators
+        additional_dependencies: [pydantic>=2.0.0, pytest>=8.0.0]
         args: [--strict]
