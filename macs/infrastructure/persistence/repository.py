@@ -76,6 +76,24 @@ class PostgresStateRepository(IStateRepository):
         )
         self._session.add(db_vote)
 
+    async def get_votes(self, task_id: UUID) -> list[ConsensusVote]:
+        """Retrieves and maps all votes for a given task.
+
+        Args:
+            task_id: The UUID of the task.
+
+        Returns:
+            list[ConsensusVote]: A list of mapped domain vote entities.
+        """
+        stmt = select(ConsensusVoteTable).where(ConsensusVoteTable.task_id == task_id)
+        result = await self._session.execute(stmt)
+
+        vote_entities: list[ConsensusVote] = []
+        for row in result.scalars():
+            vote_entities.append(DomainMapper.to_domain_vote(row))
+
+        return vote_entities
+
     async def stream_active_tasks(self) -> AsyncGenerator[Task, None]:
         """Streams active tasks using an async generator for memory efficiency.
 

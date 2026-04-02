@@ -30,6 +30,7 @@ class InfrastructureManifest:
     integration: "IIntegrationProvider"
     container: "IContainerProvider"
     vcs: "IVersionControlProvider"
+    consensus: "IConsensusService"
 
 
 class ISystemSettings(ABC):
@@ -77,6 +78,18 @@ class IStateRepository(ABC):
     @abstractmethod
     async def add_vote(self, task_id: UUID, vote: ConsensusVote) -> None:
         """Appends a Team Lead vote to a task's consensus record."""
+        pass
+
+    @abstractmethod
+    async def get_votes(self, task_id: UUID) -> list[ConsensusVote]:
+        """Retrieves all votes associated with a specific task.
+
+        Args:
+            task_id: The UUID of the task.
+
+        Returns:
+            list[ConsensusVote]: A list of domain vote entities.
+        """
         pass
 
     @abstractmethod

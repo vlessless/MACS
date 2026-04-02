@@ -33,11 +33,13 @@ class TaskOrchestrator:
         self._integration = manifest.integration
         self._container = manifest.container
         self._vcs = manifest.vcs
+        self._consensus = manifest.consensus
 
         # State transition dispatch table (Iterative logic, no recursion)
         self._dispatch_table: dict[TaskStatus, HandlerFunc] = {
             TaskStatus.PENDING: self._handle_pending,
             TaskStatus.IN_PROGRESS: self._handle_in_progress,
+            TaskStatus.TL_REVIEW: self._handle_tl_review,
             TaskStatus.STALLED_FOR_HUMAN: self._handle_stalled,
         }
 
@@ -134,4 +136,67 @@ class TaskOrchestrator:
 
     async def _handle_in_progress(self, task: Task) -> Task:
         """Transition logic for tasks in the IN_PROGRESS state."""
+        return task
+
+    async def _handle_tl_review(self, task: Task) -> Task:
+        """Processes Hybrid Consensus votes and determines code approval.
+
+        Args:
+            task: The Task entity currently in TL_REVIEW.
+
+        Returns:
+            Task: The task with updated status and thought trace.
+
+        Raises:
+            MaxStrikesExceededError: Triggered if consensus rejection causes
+                the strike count to exceed the limit.
+        """
+        votes = await self._uow.tasks.get_votes(task.id)
+        result = self._consensus.evaluate_consensus(task, votes)
+
+        if not result.is_final:
+            await self._integration.broadcast(
+                ThoughtLog(
+                    agent="Orchestrator",
+                    action="CONSENSUS_PENDING",
+                    reason="Awaiting further Team Lead votes.",
+                    priority=EventPriority.LOW,
+                    metadata={"task_id": str(task.id), "vote_count": len(votes)},
+                )
+            )
+            return task
+
+        if result.is_approved:
+            task.status = TaskStatus.COMPLETED
+            action_desc = "CONSENSUS_APPROVED"
+        else:
+            # Rejection: Increment strike and cycle back to IN_PROGRESS
+            # increment_strike() will raise MaxStrikesExceededError if limit hit.
+            task.increment_strike()
+            task.status = TaskStatus.IN_PROGRESS
+            action_desc = "CONSENSUS_REJECTED"
+
+        # Log to Thought Trace and broadcast
+        consensus_log: dict[str, Any] = {
+            "action": action_desc,
+            "rationale": result.summary_rationale,
+            "new_status": task.status.value,
+            "strike_count": task.strike_count,
+        }
+        task.thought_trace.append(consensus_log)
+
+        await self._integration.broadcast(
+            ThoughtLog(
+                agent="ConsensusService",
+                action=action_desc,
+                reason=result.summary_rationale,
+                priority=EventPriority.MEDIUM,
+                metadata={
+                    "task_id": str(task.id),
+                    "new_status": task.status.value,
+                    "strike_count": task.strike_count,
+                },
+            )
+        )
+
         return task

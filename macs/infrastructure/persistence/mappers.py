@@ -3,8 +3,8 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from macs.domain.entities import PostMortemReport, Task
-from macs.infrastructure.persistence.models import TaskTable
+from macs.domain.entities import ConsensusVote, PostMortemReport, Task
+from macs.infrastructure.persistence.models import ConsensusVoteTable, TaskTable
 
 
 class DomainMapper:
@@ -40,6 +40,23 @@ class DomainMapper:
             post_mortem_report=post_mortem,
             created_at=table.created_at,
             updated_at=table.updated_at,
+        )
+
+    @staticmethod
+    def to_domain_vote(table: ConsensusVoteTable) -> ConsensusVote:
+        """Converts a SQLAlchemy ConsensusVoteTable to a Domain ConsensusVote entity.
+
+        Args:
+            table: The database model instance.
+
+        Returns:
+            ConsensusVote: A validated Domain Entity.
+        """
+        return ConsensusVote(
+            agent_id=table.agent_id,
+            vote=table.vote,
+            raw_rationale=table.raw_rationale,
+            timestamp=table.timestamp,
         )
 
     @staticmethod
