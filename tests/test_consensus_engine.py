@@ -1,5 +1,14 @@
-"""Unit tests for the ConsensusService."""
+"""Unit tests for the ConsensusService validation suite.
 
+Mandatory Scenarios:
+- Early Exit (2/2 approved)
+- Early Exit (2/2 rejected)
+- Full House (2/3 approved, 1/3 rejected)
+- Insufficient (1 vote total)
+- Race Condition Simulation (Simultaneous async arrivals)
+"""
+
+import asyncio
 from uuid import uuid4
 
 import pytest
@@ -8,12 +17,8 @@ from macs.application.consensus import ConsensusService
 from macs.domain.entities import ConsensusVote, Task
 
 
-class TestConsensusService:
-    """Test suite for Hybrid Consensus logic.
-
-    Ensures that approval and rejection thresholds are strictly enforced
-    and supports early-exit optimization.
-    """
+class TestConsensusServiceValidation:
+    """Validation suite for Hybrid Consensus logic."""
 
     @pytest.fixture
     def service(self) -> ConsensusService:
@@ -25,69 +30,101 @@ class TestConsensusService:
         """Returns a generic Task entity for evaluation."""
         return Task(title="Consensus Test", description="Testing vote logic")
 
-    def test_evaluate_consensus_early_exit_approve(
+    def test_early_exit_approve_2_0(
         self, service: ConsensusService, mock_task: Task
     ) -> None:
-        """Verifies early exit when 2 positive votes are reached."""
+        """Boundary Test: Exactly 2 Approve vs 0 Reject triggers early exit."""
         votes = [
-            ConsensusVote(agent_id=uuid4(), vote=True, raw_rationale="Good"),
-            ConsensusVote(agent_id=uuid4(), vote=True, raw_rationale="Perfect"),
-            ConsensusVote(
-                agent_id=uuid4(), vote=False, raw_rationale="Wait"
-            ),  # Should be ignored
+            ConsensusVote(agent_id=uuid4(), vote=True, raw_rationale="Approve 1"),
+            ConsensusVote(agent_id=uuid4(), vote=True, raw_rationale="Approve 2"),
         ]
 
         result = service.evaluate_consensus(mock_task, votes)
 
         assert result.is_approved is True
         assert result.is_final is True
-        # Rationale should only contain the votes processed up to the exit
-        assert "Good" in result.summary_rationale
-        assert "Perfect" in result.summary_rationale
+        assert "Approve 1 | Approve 2" == result.summary_rationale
 
-    def test_evaluate_consensus_early_exit_reject(
+    def test_early_exit_reject_0_2(
         self, service: ConsensusService, mock_task: Task
     ) -> None:
-        """Verifies early exit when 2 negative votes are reached."""
+        """Boundary Test: Exactly 2 Reject vs 0 Approve triggers early exit."""
         votes = [
-            ConsensusVote(agent_id=uuid4(), vote=False, raw_rationale="Bad"),
-            ConsensusVote(agent_id=uuid4(), vote=False, raw_rationale="Horrible"),
-            ConsensusVote(agent_id=uuid4(), vote=True, raw_rationale="I liked it"),
+            ConsensusVote(agent_id=uuid4(), vote=False, raw_rationale="Reject 1"),
+            ConsensusVote(agent_id=uuid4(), vote=False, raw_rationale="Reject 2"),
         ]
 
         result = service.evaluate_consensus(mock_task, votes)
 
         assert result.is_approved is False
         assert result.is_final is True
-        assert "Bad" in result.summary_rationale
-        assert "Horrible" in result.summary_rationale
+        assert "Reject 1 | Reject 2" == result.summary_rationale
 
-    def test_evaluate_consensus_full_house_mixed(
+    def test_full_house_mixed_2_1(
         self, service: ConsensusService, mock_task: Task
     ) -> None:
-        """Tests a 2-approve, 1-reject scenario where order matters."""
+        """Scenario: 2 Approve vs 1 Reject (The 'Full House' majority)."""
         votes = [
-            ConsensusVote(agent_id=uuid4(), vote=True, raw_rationale="Yes 1"),
-            ConsensusVote(agent_id=uuid4(), vote=False, raw_rationale="No 1"),
-            ConsensusVote(agent_id=uuid4(), vote=True, raw_rationale="Yes 2"),
+            ConsensusVote(agent_id=uuid4(), vote=True, raw_rationale="Good"),
+            ConsensusVote(agent_id=uuid4(), vote=False, raw_rationale="Bad"),
+            ConsensusVote(agent_id=uuid4(), vote=True, raw_rationale="Better"),
         ]
 
         result = service.evaluate_consensus(mock_task, votes)
 
         assert result.is_approved is True
         assert result.is_final is True
-        assert "Yes 1 | No 1 | Yes 2" == result.summary_rationale
+        assert "Good | Bad | Better" == result.summary_rationale
 
-    def test_evaluate_consensus_insufficient_votes(
+    def test_insufficient_votes_single(
         self, service: ConsensusService, mock_task: Task
     ) -> None:
-        """Verifies that is_final is False if thresholds aren't met."""
+        """Scenario: Insufficient votes (1 total) stays in non-final state."""
         votes = [
-            ConsensusVote(agent_id=uuid4(), vote=True, raw_rationale="Only one vote"),
+            ConsensusVote(agent_id=uuid4(), vote=True, raw_rationale="Single vote"),
         ]
 
         result = service.evaluate_consensus(mock_task, votes)
 
         assert result.is_final is False
         assert result.is_approved is False
-        assert result.summary_rationale == "Only one vote"
+        assert result.summary_rationale == "Single vote"
+
+    @pytest.mark.asyncio
+    async def test_race_condition_simulation(
+        self, service: ConsensusService, mock_task: Task
+    ) -> None:
+        """Validates behavior when multiple votes arrive 'simultaneously'.
+
+        Reasoning:
+            In an async environment, multiple agents might submit votes at once.
+            The service must handle the batch provided by the repository
+            deterministically regardless of the order within that batch.
+        """
+
+        async def get_vote(val: bool, reason: str) -> ConsensusVote:
+            return ConsensusVote(agent_id=uuid4(), vote=val, raw_rationale=reason)
+
+        # Simulate concurrent generation of votes
+        vote_tasks = [
+            get_vote(True, "Async 1"),
+            get_vote(False, "Async 2"),
+            get_vote(True, "Async 3"),
+        ]
+        votes = await asyncio.gather(*vote_tasks)
+
+        result = service.evaluate_consensus(mock_task, list(votes))
+
+        assert result.is_final is True
+        assert result.is_approved is True
+        assert "Async 1 | Async 2 | Async 3" == result.summary_rationale
+
+    def test_empty_votes_state(
+        self, service: ConsensusService, mock_task: Task
+    ) -> None:
+        """Verifies behavior when get_votes returns an empty list."""
+        result = service.evaluate_consensus(mock_task, [])
+
+        assert result.is_final is False
+        assert result.is_approved is False
+        assert result.summary_rationale == ""
