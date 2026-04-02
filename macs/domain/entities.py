@@ -34,11 +34,22 @@ class ConsensusVote(BaseModel):
 
 
 class ExecutionResult(BaseModel):
-    """The outcome of a command execution inside a Sibling Container."""
+    """The outcome of a command execution inside a Sibling Container.
+
+    Attributes:
+        stdout: Standard output from the container process.
+        stderr: Standard error from the container process.
+        exit_code: Process return code (0 for success).
+        duration: Time taken in seconds for execution.
+        pytest_report: Optional parsed JSON results from a test run.
+    """
+
+    model_config = ConfigDict(frozen=True)
 
     stdout: str
     stderr: str
     exit_code: int
+    duration: float
     pytest_report: dict[str, Any] | None = None
 
 

@@ -5,7 +5,7 @@ from collections.abc import AsyncGenerator
 from typing import Self
 from uuid import UUID
 
-from .entities import Agent, ConsensusVote, Task
+from .entities import Agent, ConsensusVote, ExecutionResult, Task
 
 
 class IStateRepository(ABC):
@@ -92,4 +92,66 @@ class IUnitOfWork(ABC):
     @abstractmethod
     async def rollback(self) -> None:
         """Aborts all changes within the current transaction."""
+        pass
+
+
+class IContainerProvider(ABC):
+    """Interface for Sibling Container execution management.
+
+    Ensures zero host contamination by running all agent commands
+    in isolated environments with strict resource limits.
+    """
+
+    @abstractmethod
+    async def run_task(self, task_id: UUID, command: list[str]) -> ExecutionResult:
+        """Executes a command within a dedicated sibling container.
+
+        Args:
+            task_id: The ID of the task context for logging and mounting.
+            command: The CLI command list to execute (e.g., ["pytest", "tests/"]).
+
+        Returns:
+            ExecutionResult: The captured output and state of the execution.
+        """
+        pass
+
+
+class IVersionControlProvider(ABC):
+    """Interface for managing the Git "Stash & Sync" protocol.
+
+    Handles atomic branching and checkpointing during human intervention events.
+    """
+
+    @abstractmethod
+    async def create_checkpoint(self, task_id: UUID) -> str:
+        """Saves current work and cuts a human-fix-checkpoint branch.
+
+        Args:
+            task_id: The context for the checkpoint.
+
+        Returns:
+            str: The name of the newly created checkpoint branch.
+        """
+        pass
+
+    @abstractmethod
+    async def sync_checkpoint(self, task_id: UUID) -> None:
+        """Resumes work from a checkpoint, popping stashes and merging changes.
+
+        Args:
+            task_id: The context for the resumption.
+        """
+        pass
+
+    @abstractmethod
+    async def get_diff(self, base_branch: str, head_branch: str) -> str:
+        """Generates a diff between branches for Core Re-indexing.
+
+        Args:
+            base_branch: The target branch (e.g., 'main' or 'dev').
+            head_branch: The feature or checkpoint branch.
+
+        Returns:
+            str: The standard git diff output.
+        """
         pass
