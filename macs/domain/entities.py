@@ -33,6 +33,20 @@ class ConsensusVote(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
+class ConsensusResult(BaseModel):
+    """The aggregate outcome of a Hybrid Consensus evaluation.
+
+    Attributes:
+        is_approved: Whether the consensus reached a positive verdict.
+        is_final: Whether enough votes exist to conclude the phase.
+        summary_rationale: A concatenated or summarized string of agent feedback.
+    """
+
+    is_approved: bool
+    is_final: bool
+    summary_rationale: str
+
+
 class ExecutionResult(BaseModel):
     """The outcome of a command execution inside a Sibling Container."""
 
@@ -83,7 +97,11 @@ class Task(BaseModel):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     def increment_strike(self) -> None:
-        """Increments the strike count and updates the modified timestamp."""
+        """Increments the strike count and updates the modified timestamp.
+
+        Raises:
+            MaxStrikesExceededError: If the increment exceeds the system limit.
+        """
         if self.strike_count >= MAX_STRIKE_COUNT:
             raise MaxStrikesExceededError(
                 f"Task {self.id} has exceeded the maximum strike limit."
@@ -93,6 +111,18 @@ class Task(BaseModel):
         self.updated_at = datetime.now(UTC)
 
     def attach_post_mortem(self, report: PostMortemReport) -> None:
-        """Links a post-mortem report to the task for human review."""
+        """Links a post-mortem report to the task for human review.
+
+        Args:
+            report: The generated post-mortem entity.
+        """
         self.post_mortem_report = report
         self.updated_at = datetime.now(UTC)
+
+    def is_reviewable(self) -> bool:
+        """Determines if the task is currently awaiting team lead approval.
+
+        Returns:
+            bool: True if the task status is TL_REVIEW.
+        """
+        return self.status == TaskStatus.TL_REVIEW
