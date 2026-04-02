@@ -28,3 +28,12 @@ class TaskStatus(Enum):
     FAILED_STRIKE_3 = "FAILED_STRIKE_3"
     FAILED_STRIKE_4 = "FAILED_STRIKE_4"
     FAILED_STRIKE_5 = "FAILED_STRIKE_5"
+
+
+class EventPriority(Enum):
+    """Priority levels for system events and logs."""
+
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"

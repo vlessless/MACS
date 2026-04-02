@@ -1,36 +1,31 @@
 """Orchestrator for managing Task lifecycles and state transitions."""
 
 from collections.abc import Awaitable, Callable
+from typing import Any
 from uuid import UUID
 
-from macs.domain.entities import PostMortemReport, Task
-from macs.domain.enums import TaskStatus
+from macs.domain.entities import PostMortemReport, Task, ThoughtLog
+from macs.domain.enums import EventPriority, TaskStatus
 from macs.domain.exceptions import MaxStrikesExceededError
-from macs.domain.interfaces import IQueueProvider, IUnitOfWork
+from macs.domain.interfaces import IIntegrationProvider, IQueueProvider, IUnitOfWork
 
 # Type Alias for State Handlers
 HandlerFunc = Callable[[Task], Awaitable[Task]]
 
 
 class TaskOrchestrator:
-    """The central 'Brain' of the system, managing state transitions.
-
-    Uses a Unit of Work to ensure atomicity of state and log updates.
-    """
+    """The central 'Brain' of the system, managing state transitions."""
 
     def __init__(
         self,
         uow: IUnitOfWork,
         queue: IQueueProvider,
+        integration: IIntegrationProvider,
     ) -> None:
-        """Initializes the orchestrator with domain-defined interfaces.
-
-        Args:
-            uow: Atomic Unit of Work for state persistence.
-            queue: Interface for task enqueuing and retrieval.
-        """
+        """Initializes the orchestrator with domain-defined interfaces."""
         self._uow = uow
         self._queue = queue
+        self._integration = integration
 
         self._dispatch_table: dict[TaskStatus, HandlerFunc] = {
             TaskStatus.PENDING: self._handle_pending,
@@ -39,24 +34,19 @@ class TaskOrchestrator:
         }
 
     async def process_task(self, task_id: UUID) -> None:
-        """The core processing loop for a single task using atomic transactions.
-
-        Args:
-            task_id: The unique identifier of the task to be processed.
-
-        Raises:
-            ValueError: If the task status has no registered handler.
-            RuntimeError: If the task is not found in the repository.
-
-        Reasoning:
-            All state transitions and thought trace updates are performed
-            inside an async context manager to ensure partial failures
-            do not leave the system in an inconsistent state.
-        """
+        """The core processing loop for a single task."""
         async with self._uow as uow:
             task: Task | None = await uow.tasks.get_task(task_id)
 
             if task is None:
+                await self._integration.broadcast(
+                    ThoughtLog(
+                        agent="Orchestrator",
+                        action="TASK_NOT_FOUND",
+                        reason=f"Attempted to process non-existent task {task_id}",
+                        priority=EventPriority.HIGH,
+                    )
+                )
                 raise RuntimeError(f"Task {task_id} not found in repository.")
 
             try:
@@ -70,21 +60,15 @@ class TaskOrchestrator:
                 updated_task: Task = await handler(task)
 
             except MaxStrikesExceededError as err:
-                updated_task = self._handle_circuit_breaker_failure(task, str(err))
+                updated_task = await self._handle_circuit_breaker_failure(
+                    task, str(err)
+                )
 
             await uow.tasks.update_task(updated_task)
             await uow.commit()
 
-    def _handle_circuit_breaker_failure(self, task: Task, error_msg: str) -> Task:
-        """Generates a post-mortem and halts the task after the 5th strike.
-
-        Args:
-            task: The task that exceeded the strike limit.
-            error_msg: The error message from the strike failure.
-
-        Returns:
-            Task: The task updated with a PostMortemReport and STALLED status.
-        """
+    async def _handle_circuit_breaker_failure(self, task: Task, error_msg: str) -> Task:
+        """Generates a post-mortem and halts the task after the 5th strike."""
         last_action: str = "Initial Assignment"
         if task.thought_trace:
             last_action = str(task.thought_trace[-1].get("action", "Unknown Action"))
@@ -98,12 +82,21 @@ class TaskOrchestrator:
         task.attach_post_mortem(report)
         task.status = TaskStatus.STALLED_FOR_HUMAN
 
-        task.thought_trace.append(
-            {
-                "action": "HALT",
-                "reason": "Max strikes exceeded",
-                "status": "STALLED_FOR_HUMAN",
-            }
+        halt_log: dict[str, Any] = {
+            "action": "HALT",
+            "reason": "Max strikes exceeded",
+            "status": "STALLED_FOR_HUMAN",
+        }
+        task.thought_trace.append(halt_log)
+
+        await self._integration.broadcast(
+            ThoughtLog(
+                agent="QA_GATEKEEPER",
+                action="INTERVENTION_REQUIRED",
+                reason="5-Strike Circuit Breaker triggered. System Halted.",
+                priority=EventPriority.CRITICAL,
+                metadata={"task_id": str(task.id), "error": error_msg},
+            )
         )
 
         return task
@@ -114,9 +107,20 @@ class TaskOrchestrator:
 
     async def _handle_pending(self, task: Task) -> Task:
         """Transition logic for tasks in the PENDING state."""
+        old_status = task.status.name
         task.status = TaskStatus.IN_PROGRESS
+
         task.thought_trace.append(
-            {"action": "TRANSITION", "from": "PENDING", "to": "IN_PROGRESS"}
+            {"action": "TRANSITION", "from": old_status, "to": "IN_PROGRESS"}
+        )
+
+        await self._integration.broadcast(
+            ThoughtLog(
+                agent="Orchestrator",
+                action="TRANSITION",
+                reason=f"Moving task from {old_status} to IN_PROGRESS",
+                priority=EventPriority.LOW,
+            )
         )
         return task
 

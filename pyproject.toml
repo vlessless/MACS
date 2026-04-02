@@ -65,7 +65,7 @@ show_error_codes = true
 plugins = ["pydantic.mypy", "sqlalchemy.ext.mypy.plugin"]
 
 [[tool.mypy.overrides]]
-module = ["docker.*", "git.*", "redis.*"]
+module = ["docker.*", "git.*", "redis.*", "fastapi.*", "websockets.*", "starlette.*"]
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]
