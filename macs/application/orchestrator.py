@@ -7,26 +7,34 @@ from uuid import UUID
 from macs.domain.entities import PostMortemReport, Task, ThoughtLog
 from macs.domain.enums import EventPriority, TaskStatus
 from macs.domain.exceptions import MaxStrikesExceededError
-from macs.domain.interfaces import IIntegrationProvider, IQueueProvider, IUnitOfWork
+from macs.domain.interfaces import InfrastructureManifest
 
 # Type Alias for State Handlers
 HandlerFunc = Callable[[Task], Awaitable[Task]]
 
 
 class TaskOrchestrator:
-    """The central 'Brain' of the system, managing state transitions."""
+    """The central 'Brain' of the system, managing state transitions.
 
-    def __init__(
-        self,
-        uow: IUnitOfWork,
-        queue: IQueueProvider,
-        integration: IIntegrationProvider,
-    ) -> None:
-        """Initializes the orchestrator with domain-defined interfaces."""
-        self._uow = uow
-        self._queue = queue
-        self._integration = integration
+    Reasoning:
+        The Orchestrator coordinates between the state machine logic and
+        external providers using an InfrastructureManifest to maintain
+        Domain layer isolation.
+    """
 
+    def __init__(self, manifest: InfrastructureManifest) -> None:
+        """Initializes the orchestrator with the infrastructure manifest.
+
+        Args:
+            manifest: A container holding the required interface implementations.
+        """
+        self._uow = manifest.uow
+        self._queue = manifest.queue
+        self._integration = manifest.integration
+        self._container = manifest.container
+        self._vcs = manifest.vcs
+
+        # State transition dispatch table (Iterative logic, no recursion)
         self._dispatch_table: dict[TaskStatus, HandlerFunc] = {
             TaskStatus.PENDING: self._handle_pending,
             TaskStatus.IN_PROGRESS: self._handle_in_progress,
