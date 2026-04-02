@@ -8,6 +8,36 @@ from uuid import UUID
 from .entities import Agent, ConsensusVote, ExecutionResult, Task, ThoughtLog
 
 
+class ISystemSettings(ABC):
+    """Interface for system-wide configuration management.
+
+    Reasoning:
+        By defining an interface for settings, the Domain and Application
+        layers remain decoupled from the specific library (e.g., pydantic-settings)
+        used to parse environment variables.
+    """
+
+    @abstractmethod
+    def get_database_url(self) -> str:
+        """Returns the PostgreSQL connection string."""
+        pass
+
+    @abstractmethod
+    def get_redis_url(self) -> str:
+        """Returns the Redis connection string."""
+        pass
+
+    @abstractmethod
+    def get_docker_base_image(self) -> str:
+        """Returns the default Docker image for sibling containers."""
+        pass
+
+    @abstractmethod
+    def get_log_level(self) -> str:
+        """Returns the configured logging level (e.g., INFO, DEBUG)."""
+        pass
+
+
 class IStateRepository(ABC):
     """Interface for persistent storage of the system state."""
 
