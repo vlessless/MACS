@@ -6,6 +6,7 @@ Reasoning:
     Orchestrator, satisfying the Dependency Inversion Principle.
 """
 
+from macs.application.consensus import ConsensusService
 from macs.application.orchestrator import TaskOrchestrator
 from macs.domain.interfaces import (
     InfrastructureManifest,
@@ -40,6 +41,7 @@ class ApplicationFactory:
             base_image=settings.get_docker_base_image()
         )
         vcs_provider = GitVersionControlProvider(repo_path=".")
+        consensus_service = ConsensusService()
 
         # Pack into manifest to avoid constructor argument bloat
         manifest = InfrastructureManifest(
@@ -48,6 +50,7 @@ class ApplicationFactory:
             integration=ws_provider,
             container=container_provider,
             vcs=vcs_provider,
+            consensus=consensus_service,
         )
 
         return TaskOrchestrator(manifest=manifest)

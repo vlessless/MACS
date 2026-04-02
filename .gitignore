@@ -12,3 +12,4 @@ wheels/
 errors
 logs
 docs
+.coverage

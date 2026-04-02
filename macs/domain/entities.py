@@ -33,6 +33,14 @@ class ConsensusVote(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
+class ConsensusResult(BaseModel):
+    """The aggregate outcome of a Hybrid Consensus evaluation."""
+
+    is_approved: bool
+    is_final: bool
+    summary_rationale: str
+
+
 class ExecutionResult(BaseModel):
     """The outcome of a command execution inside a Sibling Container."""
 
@@ -55,10 +63,7 @@ class PostMortemReport(BaseModel):
 
 
 class ThoughtLog(BaseModel):
-    """Standardized log structure for the MACS Thought Trace.
-
-    This entity is passed to the Integration Layer for broadcasting.
-    """
+    """Standardized log structure for the MACS Thought Trace."""
 
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     agent: str
@@ -83,16 +88,30 @@ class Task(BaseModel):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     def increment_strike(self) -> None:
-        """Increments the strike count and updates the modified timestamp."""
-        if self.strike_count >= MAX_STRIKE_COUNT:
-            raise MaxStrikesExceededError(
-                f"Task {self.id} has exceeded the maximum strike limit."
-            )
+        """Increments the strike count and updates the modified timestamp.
 
+        Raises:
+            MaxStrikesExceededError: If the strike count reaches the system limit.
+
+        Reasoning:
+            The 5-Strike Protocol requires a Hard Halt upon the 5th consecutive
+            failure. By raising the exception when the count reaches the limit,
+            we ensure the Orchestrator's circuit breaker logic is engaged
+            before any further state transitions occur.
+        """
         self.strike_count += 1
         self.updated_at = datetime.now(UTC)
+
+        if self.strike_count >= MAX_STRIKE_COUNT:
+            # Fixed line length for E501
+            msg = f"Task {self.id} reached strike limit ({MAX_STRIKE_COUNT})."
+            raise MaxStrikesExceededError(msg)
 
     def attach_post_mortem(self, report: PostMortemReport) -> None:
         """Links a post-mortem report to the task for human review."""
         self.post_mortem_report = report
         self.updated_at = datetime.now(UTC)
+
+    def is_reviewable(self) -> bool:
+        """Determines if the task is currently awaiting team lead approval."""
+        return self.status == TaskStatus.TL_REVIEW

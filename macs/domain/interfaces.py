@@ -6,7 +6,14 @@ from dataclasses import dataclass
 from typing import Self
 from uuid import UUID
 
-from .entities import Agent, ConsensusVote, ExecutionResult, Task, ThoughtLog
+from .entities import (
+    Agent,
+    ConsensusResult,
+    ConsensusVote,
+    ExecutionResult,
+    Task,
+    ThoughtLog,
+)
 
 
 @dataclass(frozen=True)
@@ -23,6 +30,7 @@ class InfrastructureManifest:
     integration: "IIntegrationProvider"
     container: "IContainerProvider"
     vcs: "IVersionControlProvider"
+    consensus: "IConsensusService"
 
 
 class ISystemSettings(ABC):
@@ -45,7 +53,7 @@ class ISystemSettings(ABC):
 
     @abstractmethod
     def get_log_level(self) -> str:
-        """Returns the configured logging level (e.g., INFO, DEBUG)."""
+        """Returns the configured logging level (e.g., INFO, DEBUG).."""
         pass
 
 
@@ -70,6 +78,18 @@ class IStateRepository(ABC):
     @abstractmethod
     async def add_vote(self, task_id: UUID, vote: ConsensusVote) -> None:
         """Appends a Team Lead vote to a task's consensus record."""
+        pass
+
+    @abstractmethod
+    async def get_votes(self, task_id: UUID) -> list[ConsensusVote]:
+        """Retrieves all votes associated with a specific task.
+
+        Args:
+            task_id: The UUID of the task.
+
+        Returns:
+            list[ConsensusVote]: A list of domain vote entities.
+        """
         pass
 
     @abstractmethod
@@ -159,4 +179,28 @@ class IIntegrationProvider(ABC):
     @abstractmethod
     async def broadcast(self, log: ThoughtLog) -> None:
         """Sends a structured log message to all connected observers."""
+        pass
+
+
+class IConsensusService(ABC):
+    """Interface for the Hybrid Consensus engine.
+
+    Reasoning:
+        Separates the logic of determining code quality and consensus
+        from the orchestrator's state transition management.
+    """
+
+    @abstractmethod
+    def evaluate_consensus(
+        self, task: Task, votes: list[ConsensusVote]
+    ) -> ConsensusResult:
+        """Analyzes team lead votes to determine if a task is approved or rejected.
+
+        Args:
+            task: The Task entity being reviewed.
+            votes: A list of votes cast by team leads.
+
+        Returns:
+            ConsensusResult: The decision and summary of the review process.
+        """
         pass
