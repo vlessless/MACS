@@ -2,20 +2,31 @@
 
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
+from dataclasses import dataclass
 from typing import Self
 from uuid import UUID
 
 from .entities import Agent, ConsensusVote, ExecutionResult, Task, ThoughtLog
 
 
-class ISystemSettings(ABC):
-    """Interface for system-wide configuration management.
+@dataclass(frozen=True)
+class InfrastructureManifest:
+    """A container for infrastructure dependencies.
 
     Reasoning:
-        By defining an interface for settings, the Domain and Application
-        layers remain decoupled from the specific library (e.g., pydantic-settings)
-        used to parse environment variables.
+        Groups the core providers into a single object to prevent
+        constructor bloat and satisfy Pylint/Ruff argument limits.
     """
+
+    uow: "IUnitOfWork"
+    queue: "IQueueProvider"
+    integration: "IIntegrationProvider"
+    container: "IContainerProvider"
+    vcs: "IVersionControlProvider"
+
+
+class ISystemSettings(ABC):
+    """Interface for system-wide configuration management."""
 
     @abstractmethod
     def get_database_url(self) -> str:
@@ -147,9 +158,5 @@ class IIntegrationProvider(ABC):
 
     @abstractmethod
     async def broadcast(self, log: ThoughtLog) -> None:
-        """Sends a structured log message to all connected observers.
-
-        Args:
-            log: The ThoughtLog domain entity containing the trace details.
-        """
+        """Sends a structured log message to all connected observers."""
         pass

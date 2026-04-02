@@ -6,14 +6,16 @@ Reasoning:
     Orchestrator, satisfying the Dependency Inversion Principle.
 """
 
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-
 from macs.application.orchestrator import TaskOrchestrator
-from macs.domain.interfaces import IQueueProvider
+from macs.domain.interfaces import (
+    InfrastructureManifest,
+    IQueueProvider,
+    IUnitOfWork,
+)
 from macs.infrastructure.config import SystemSettings
 from macs.infrastructure.container.docker_client import DockerContainerProvider
 from macs.infrastructure.integration.websocket_provider import ws_provider
-from macs.infrastructure.persistence.uow import PostgresUnitOfWork
+from macs.infrastructure.vcs.git_manager import GitVersionControlProvider
 
 
 class ApplicationFactory:
@@ -21,25 +23,31 @@ class ApplicationFactory:
 
     @staticmethod
     def create_orchestrator(
-        settings: SystemSettings, queue: IQueueProvider
+        settings: SystemSettings, uow: IUnitOfWork, queue: IQueueProvider
     ) -> TaskOrchestrator:
         """Wires up the Orchestrator with initialized infrastructure dependencies.
 
         Args:
             settings: Validated system configuration.
-            queue: The initialized queue provider (e.g., Redis).
+            uow: Initialized Persistence Unit of Work.
+            queue: Initialized Queue Provider.
 
         Returns:
-            TaskOrchestrator: The fully assembled system brain.
+            TaskOrchestrator: The fully assembled system brain with all limbs.
         """
-        # Infrastructure Initialization
-        engine = create_async_engine(settings.get_database_url())
-        session_factory = async_sessionmaker(engine, expire_on_commit=False)
+        # Initialize providers
+        container_provider = DockerContainerProvider(
+            base_image=settings.get_docker_base_image()
+        )
+        vcs_provider = GitVersionControlProvider(repo_path=".")
 
-        uow = PostgresUnitOfWork(session_factory)
+        # Pack into manifest to avoid constructor argument bloat
+        manifest = InfrastructureManifest(
+            uow=uow,
+            queue=queue,
+            integration=ws_provider,
+            container=container_provider,
+            vcs=vcs_provider,
+        )
 
-        # Docker provider is available for use within Task handlers via the Orchestrator
-        # or can be injected if logic requires direct container interaction.
-        _ = DockerContainerProvider(base_image=settings.get_docker_base_image())
-
-        return TaskOrchestrator(uow=uow, queue=queue, integration=ws_provider)
+        return TaskOrchestrator(manifest=manifest)
