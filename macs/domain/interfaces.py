@@ -5,15 +5,11 @@ from collections.abc import AsyncGenerator
 from typing import Self
 from uuid import UUID
 
-from .entities import Agent, ConsensusVote, ExecutionResult, Task
+from .entities import Agent, ConsensusVote, ExecutionResult, Task, ThoughtLog
 
 
 class IStateRepository(ABC):
-    """Interface for persistent storage of the system state.
-
-    Follows Dependency Inversion: Domain does not know about storage tech.
-    Methods are asynchronous to support non-blocking orchestration logic.
-    """
+    """Interface for persistent storage of the system state."""
 
     @abstractmethod
     async def get_task(self, task_id: UUID) -> Task | None:
@@ -37,11 +33,7 @@ class IStateRepository(ABC):
 
     @abstractmethod
     async def stream_active_tasks(self) -> AsyncGenerator[Task, None]:
-        """Yields tasks in progress via an async generator for memory efficiency.
-
-        Yields:
-            Task: The next active task in the sequence.
-        """
+        """Yields tasks in progress via an async generator."""
         yield  # type: ignore
 
 
@@ -65,10 +57,7 @@ class IQueueProvider(ABC):
 
 
 class IUnitOfWork(ABC):
-    """Interface for managing atomic database transactions.
-
-    Encapsulates multiple repository actions into a single commit/rollback cycle.
-    """
+    """Interface for managing atomic database transactions."""
 
     tasks: IStateRepository
 
@@ -96,62 +85,41 @@ class IUnitOfWork(ABC):
 
 
 class IContainerProvider(ABC):
-    """Interface for Sibling Container execution management.
-
-    Ensures zero host contamination by running all agent commands
-    in isolated environments with strict resource limits.
-    """
+    """Interface for Sibling Container execution management."""
 
     @abstractmethod
     async def run_task(self, task_id: UUID, command: list[str]) -> ExecutionResult:
-        """Executes a command within a dedicated sibling container.
-
-        Args:
-            task_id: The ID of the task context for logging and mounting.
-            command: The CLI command list to execute (e.g., ["pytest", "tests/"]).
-
-        Returns:
-            ExecutionResult: The captured output and state of the execution.
-        """
+        """Executes a command within a dedicated sibling container."""
         pass
 
 
 class IVersionControlProvider(ABC):
-    """Interface for managing the Git "Stash & Sync" protocol.
-
-    Handles atomic branching and checkpointing during human intervention events.
-    """
+    """Interface for managing the Git "Stash & Sync" protocol."""
 
     @abstractmethod
     async def create_checkpoint(self, task_id: UUID) -> str:
-        """Saves current work and cuts a human-fix-checkpoint branch.
-
-        Args:
-            task_id: The context for the checkpoint.
-
-        Returns:
-            str: The name of the newly created checkpoint branch.
-        """
+        """Saves current work and cuts a human-fix-checkpoint branch."""
         pass
 
     @abstractmethod
     async def sync_checkpoint(self, task_id: UUID) -> None:
-        """Resumes work from a checkpoint, popping stashes and merging changes.
-
-        Args:
-            task_id: The context for the resumption.
-        """
+        """Resumes work from a checkpoint."""
         pass
 
     @abstractmethod
     async def get_diff(self, base_branch: str, head_branch: str) -> str:
-        """Generates a diff between branches for Core Re-indexing.
+        """Generates a diff between branches."""
+        pass
+
+
+class IIntegrationProvider(ABC):
+    """Interface for the Integration Agent's real-time observability bridge."""
+
+    @abstractmethod
+    async def broadcast(self, log: ThoughtLog) -> None:
+        """Sends a structured log message to all connected observers.
 
         Args:
-            base_branch: The target branch (e.g., 'main' or 'dev').
-            head_branch: The feature or checkpoint branch.
-
-        Returns:
-            str: The standard git diff output.
+            log: The ThoughtLog domain entity containing the trace details.
         """
         pass

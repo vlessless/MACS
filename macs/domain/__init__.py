@@ -1,14 +1,28 @@
 """MACS Domain Layer: Entities, Enums, and Interfaces."""
 
-from .entities import Agent, ConsensusVote, ExecutionResult, PostMortemReport, Task
-from .enums import AgentRole, TaskStatus
+from .entities import (
+    Agent,
+    ConsensusVote,
+    ExecutionResult,
+    PostMortemReport,
+    Task,
+    ThoughtLog,
+)
+from .enums import AgentRole, EventPriority, TaskStatus
 from .exceptions import (
     ConsensusNotReachedError,
     MACSDomainException,
     MaxStrikesExceededError,
     PersistenceError,
 )
-from .interfaces import IQueueProvider, IStateRepository, IUnitOfWork
+from .interfaces import (
+    IContainerProvider,
+    IIntegrationProvider,
+    IQueueProvider,
+    IStateRepository,
+    IUnitOfWork,
+    IVersionControlProvider,
+)
 
 __all__ = [
     "Agent",
@@ -16,7 +30,9 @@ __all__ = [
     "ExecutionResult",
     "PostMortemReport",
     "Task",
+    "ThoughtLog",
     "AgentRole",
+    "EventPriority",
     "TaskStatus",
     "MACSDomainException",
     "MaxStrikesExceededError",
@@ -25,4 +41,7 @@ __all__ = [
     "IStateRepository",
     "IQueueProvider",
     "IUnitOfWork",
+    "IContainerProvider",
+    "IIntegrationProvider",
+    "IVersionControlProvider",
 ]

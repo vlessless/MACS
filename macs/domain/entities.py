@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .enums import AgentRole, TaskStatus
+from .enums import AgentRole, EventPriority, TaskStatus
 from .exceptions import MaxStrikesExceededError
 
 # MACS System Constants
@@ -34,15 +34,7 @@ class ConsensusVote(BaseModel):
 
 
 class ExecutionResult(BaseModel):
-    """The outcome of a command execution inside a Sibling Container.
-
-    Attributes:
-        stdout: Standard output from the container process.
-        stderr: Standard error from the container process.
-        exit_code: Process return code (0 for success).
-        duration: Time taken in seconds for execution.
-        pytest_report: Optional parsed JSON results from a test run.
-    """
+    """The outcome of a command execution inside a Sibling Container."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -62,14 +54,22 @@ class PostMortemReport(BaseModel):
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
-class Task(BaseModel):
-    """The central entity tracking the SDLC progress of a specific requirement.
+class ThoughtLog(BaseModel):
+    """Standardized log structure for the MACS Thought Trace.
 
-    Attributes:
-        strike_count: Tracks consecutive pytest failures (Max 5).
-        thought_trace: A chronological log of agent reasoning and actions.
-        post_mortem_report: Detailed failure analysis for human intervention.
+    This entity is passed to the Integration Layer for broadcasting.
     """
+
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    agent: str
+    action: str
+    reason: str
+    priority: EventPriority = EventPriority.LOW
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class Task(BaseModel):
+    """The central entity tracking the SDLC progress of a specific requirement."""
 
     id: UUID = Field(default_factory=uuid4)
     title: str
@@ -83,28 +83,16 @@ class Task(BaseModel):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     def increment_strike(self) -> None:
-        """Increments the strike count and updates the modified timestamp.
-
-        Raises:
-            MaxStrikesExceededError: If the increment would exceed the limit.
-
-        Reasoning:
-            Enforces the 5-Strike Rule invariant at the domain level.
-        """
+        """Increments the strike count and updates the modified timestamp."""
         if self.strike_count >= MAX_STRIKE_COUNT:
             raise MaxStrikesExceededError(
-                f"Task {self.id} has exceeded the maximum "
-                f"strike limit ({MAX_STRIKE_COUNT})."
+                f"Task {self.id} has exceeded the maximum strike limit."
             )
 
         self.strike_count += 1
         self.updated_at = datetime.now(UTC)
 
     def attach_post_mortem(self, report: PostMortemReport) -> None:
-        """Links a post-mortem report to the task for human review.
-
-        Args:
-            report: The generated failure analysis report.
-        """
+        """Links a post-mortem report to the task for human review."""
         self.post_mortem_report = report
         self.updated_at = datetime.now(UTC)
