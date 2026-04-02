@@ -2,6 +2,7 @@
 
 from .entities import (
     Agent,
+    ConsensusResult,
     ConsensusVote,
     ExecutionResult,
     PostMortemReport,
@@ -16,6 +17,7 @@ from .exceptions import (
     PersistenceError,
 )
 from .interfaces import (
+    IConsensusService,
     IContainerProvider,
     IIntegrationProvider,
     IQueueProvider,
@@ -26,6 +28,7 @@ from .interfaces import (
 
 __all__ = [
     "Agent",
+    "ConsensusResult",
     "ConsensusVote",
     "ExecutionResult",
     "PostMortemReport",
@@ -44,4 +47,5 @@ __all__ = [
     "IContainerProvider",
     "IIntegrationProvider",
     "IVersionControlProvider",
+    "IConsensusService",
 ]
