@@ -19,6 +19,7 @@ dependencies = [
     "uvicorn>=0.30.0",
     "redis>=5.0.0",
     "websockets>=13.1",
+    "pydantic-settings>=2.13.1",
 ]
 
 [dependency-groups]
